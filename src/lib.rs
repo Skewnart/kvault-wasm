@@ -1,3 +1,4 @@
+use std::io::Read;
 use aes_gcm::{AeadCore, Aes256Gcm, KeyInit};
 use aes_gcm::aead::{Aead};
 use argon2::{Argon2};
@@ -24,7 +25,7 @@ pub fn generate_keypair() {
 }
 
 #[wasm_bindgen]
-pub fn test_all_steps() {
+pub fn test_all_steps(password: String) -> Result<String, JsValue> {
     // Register
     println!("# REGISTER");
     let master = b"MasterPassword";
@@ -50,7 +51,7 @@ pub fn test_all_steps() {
     // Création Entry
     println!("# CREATION ENTRY");
     // recoit public kyber
-    let pwd = b"mot_de_passe";
+    let pwd = password.as_bytes();
     println!("pwd : {:?}", pwd);
 
     let mut rng = rand::thread_rng();
@@ -84,6 +85,8 @@ pub fn test_all_steps() {
     let cipher = Aes256Gcm::new_from_slice(&cipher_key).unwrap();
     let pwd = cipher.decrypt(&nonce2, enc_pwd.as_ref()).unwrap();
     println!("pwd: {:?}", pwd);
+
+    String::from_utf8(pwd).map_err(|_|JsValue::NULL)
 }
 
 #[cfg(test)]
@@ -97,7 +100,8 @@ mod tests {
 
     #[test]
     fn test_test_all_steps() {
-        test_all_steps();
+        let pwd = test_all_steps("mot de passe".to_string()).unwrap();
+        println!("final pwd: {:?}", pwd);
     }
 }
 
