@@ -7,4 +7,6 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
+pqc_kyber = "0.7.1"
 wasm-bindgen = "0.2.108"
+rand = "0.8.5"
