@@ -6,22 +6,13 @@ use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 extern "C" {
-    fn alert(s: &str);
+    // fn alert(s: &str);
 }
 
-#[wasm_bindgen]
-pub fn greet(name: &str) {
-    alert(&format!("Hello, {name}!"));
-}
-
-#[wasm_bindgen]
-pub fn generate_keypair() {
-    let mut rng = rand::thread_rng();
-
-    let keys = pqc_kyber::keypair(&mut rng).unwrap();
-    println!("public : {:?}", keys.public);
-    println!("secret : {:?}", keys.secret);
-}
+// #[wasm_bindgen]
+// pub fn greet(name: &str) {
+//     alert(&format!("Hello, {name}!"));
+// }
 
 #[wasm_bindgen]
 pub fn test_all_steps(password: String) -> Result<String, JsValue> {
@@ -90,17 +81,14 @@ pub fn test_all_steps(password: String) -> Result<String, JsValue> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{generate_keypair, test_all_steps};
-
-    #[test]
-    fn test_generate_keypair() {
-        generate_keypair();
-    }
+    use crate::{test_all_steps};
 
     #[test]
     fn test_test_all_steps() {
-        let pwd = test_all_steps("mot de passe".to_string()).unwrap();
-        println!("final pwd: {:?}", pwd);
+        let initial_password = "mot de passe";
+        let pwd = test_all_steps(String::from(initial_password)).unwrap();
+
+        assert_eq!(pwd, initial_password);
     }
 }
 
