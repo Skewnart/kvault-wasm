@@ -1,8 +1,11 @@
+mod models;
+
 use aes_gcm::{AeadCore, Aes256Gcm, KeyInit};
 use aes_gcm::aead::{Aead};
 use argon2::{Argon2};
 use rand::rngs::OsRng;
 use wasm_bindgen::prelude::*;
+use crate::models::register_envelope::RegisterEnvelope;
 
 #[wasm_bindgen]
 extern "C" {
@@ -13,6 +16,29 @@ extern "C" {
 // pub fn greet(name: &str) {
 //     alert(&format!("Hello, {name}!"));
 // }
+
+#[wasm_bindgen]
+pub fn generate_register_envelope(master_password: String, user_email: String) -> Result<RegisterEnvelope, JsValue> {
+    let master = master_password.as_bytes();
+    let salt = user_email.as_bytes();
+
+    let mut k_master = [0u8; 32];
+    Argon2::default().hash_password_into(master, salt, &mut k_master).map_err(|e| JsValue::from(e.to_string()))?;
+
+    let mut rng = rand::thread_rng();
+    let kyber_keys = pqc_kyber::keypair(&mut rng).map_err(|e| JsValue::from(e.to_string()))?;
+
+    let cipher = Aes256Gcm::new_from_slice(&k_master).map_err(|e| JsValue::from(e.to_string()))?;
+    let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+    let enc_sk = cipher.encrypt(&nonce, kyber_keys.secret.as_ref()).map_err(|e| JsValue::from(e.to_string()))?;
+
+    Ok(RegisterEnvelope::new(
+        enc_sk,
+        Vec::from(kyber_keys.public),
+        nonce.as_slice().into()
+    ))
+}
+
 
 #[wasm_bindgen]
 pub fn test_all_steps(password: String) -> Result<String, JsValue> {
@@ -45,7 +71,7 @@ pub fn test_all_steps(password: String) -> Result<String, JsValue> {
     println!("pwd : {:?}", pwd);
 
     let mut rng = rand::thread_rng();
-    let (encrypted_kyber, cipher_key) = pqc_kyber::encapsulate(&kyber_keys.public, &mut rng).unwrap();
+    let (enc_kyber, cipher_key) = pqc_kyber::encapsulate(&kyber_keys.public, &mut rng).unwrap();
 
     let cipher = Aes256Gcm::new_from_slice(&cipher_key).unwrap();
     let nonce2 = Aes256Gcm::generate_nonce(&mut OsRng);
@@ -53,12 +79,12 @@ pub fn test_all_steps(password: String) -> Result<String, JsValue> {
 
     println!("cipher_key: {:?}", cipher_key);
     println!("enc_pwd: {:?}", enc_pwd);
-    println!("encrypted_kyber: {:?}", encrypted_kyber);
-    //to send : entry_metadata, encrypted_kyber + enc_pwd
+    println!("enc_kyber: {:?}", enc_kyber);
+    //to send : entry_metadata, enc_kyber + enc_pwd
 
     // LECTURE ENTRY
     println!("# LECTURE ENTRY");
-    // Reception de entry_metadata, enc_pwd, encrypted_kyber, enc_sk
+    // Reception de entry_metadata, enc_pwd, enc_kyber, enc_sk
 
     let mut k_master = [0u8; 32];
     let salt = b"email_user";
@@ -69,7 +95,7 @@ pub fn test_all_steps(password: String) -> Result<String, JsValue> {
     let sk = cipher.decrypt(&nonce1, enc_sk.as_ref()).unwrap();
     println!("sk: {:?}", sk);
 
-    let cipher_key = pqc_kyber::decapsulate(&encrypted_kyber, &sk).unwrap();
+    let cipher_key = pqc_kyber::decapsulate(&enc_kyber, &sk).unwrap();
     println!("cipher_key: {:?}", cipher_key);
 
     let cipher = Aes256Gcm::new_from_slice(&cipher_key).unwrap();
