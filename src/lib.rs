@@ -1,4 +1,3 @@
-use std::io::Read;
 use aes_gcm::{AeadCore, Aes256Gcm, KeyInit};
 use aes_gcm::aead::{Aead};
 use argon2::{Argon2};
