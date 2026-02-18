@@ -5,6 +5,7 @@ use aes_gcm::aead::{Aead};
 use argon2::{Argon2};
 use rand::rngs::OsRng;
 use wasm_bindgen::prelude::*;
+use crate::models::entry::Entry;
 use crate::models::register_envelope::RegisterEnvelope;
 
 #[wasm_bindgen]
@@ -39,6 +40,23 @@ pub fn generate_register_envelope(master_password: String, user_email: String) -
     ))
 }
 
+#[wasm_bindgen]
+pub fn create_entry(password: String, pk: Vec<u8>) -> Result<Entry, JsValue> {
+    let password = password.as_bytes();
+
+    let mut rng = rand::thread_rng();
+    let (enc_kyber, cipher_key) = pqc_kyber::encapsulate(&pk, &mut rng).map_err(|e| JsValue::from(e.to_string()))?;
+
+    let cipher = Aes256Gcm::new_from_slice(&cipher_key).map_err(|e| JsValue::from(e.to_string()))?;
+    let pwd_nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+    let enc_pwd = cipher.encrypt(&pwd_nonce, password.as_ref()).map_err(|e| JsValue::from(e.to_string()))?;
+
+    Ok(Entry::new(
+        enc_pwd,
+        enc_kyber.to_vec(),
+        pwd_nonce.as_slice().into()
+    ))
+}
 
 #[wasm_bindgen]
 pub fn test_all_steps(password: String) -> Result<String, JsValue> {
