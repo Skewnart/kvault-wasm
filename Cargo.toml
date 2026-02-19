@@ -12,4 +12,5 @@ wasm-bindgen = "0.2.108"
 rand = "0.8.5"
 argon2 = "0.5.3"
 aes-gcm = "0.10.3"
+derive_more = { version = "2.1.1", features = ["from"] }
 getrandom = { version = "0.2", features = ["js"]}
