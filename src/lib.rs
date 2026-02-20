@@ -11,6 +11,10 @@ use crate::models::register_envelope::RegisterEnvelope;
 
 #[wasm_bindgen]
 pub fn generate_register_envelope(master_password: String) -> Result<RegisterEnvelope, JsValue> {
+    if master_password.is_empty() {
+        return Err(JsValue::NULL)
+    }
+
     let master = master_password.as_bytes();
     let mut master_salt = [0u8; 16];
     rand::thread_rng().fill_bytes(&mut master_salt);
@@ -39,6 +43,10 @@ pub fn generate_register_envelope(master_password: String) -> Result<RegisterEnv
 
 #[wasm_bindgen]
 pub fn create_entry(password: String, pk: Vec<u8>) -> Result<Entry, JsValue> {
+    if password.is_empty() {
+        return Err(JsValue::NULL);
+    }
+
     let password = password.as_bytes();
 
     let mut rng = rand::thread_rng();
