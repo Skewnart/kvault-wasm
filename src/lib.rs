@@ -96,10 +96,65 @@ pub fn read_entry(master_password: String, master_salt: Vec<u8>, enc_sk: Vec<u8>
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn test_step() {
+    use super::*;
 
-        // assert_eq!();
+    #[test]
+    fn test_generate_register_envelope_and_create_entry_and_read_entry() {
+        let master_password = "SuperSecretPassword123!".to_string();
+
+        // Génération de l'enveloppe d'enregistrement
+        let envelope = generate_register_envelope(master_password.clone())
+            .expect("Failed to create register envelope");
+
+        // Création d'une entrée avec un mot de passe à stocker
+        let password_to_store = "MyPassword42".to_string();
+        let entry = create_entry(password_to_store.clone(), envelope.pk.clone())
+            .expect("Failed to create entry");
+
+        // Lecture du mot de passe à partir de l'entrée
+        let result = read_entry(
+            master_password.clone(),
+            envelope.master_salt.clone(),
+            envelope.enc_sk.clone(),
+            envelope.sk_nonce.clone(),
+            entry.enc_pwd.clone(),
+            entry.enc_kyber.clone(),
+            entry.pwd_nonce.clone(),
+        ).expect("Failed to read entry");
+
+        assert_eq!(result, password_to_store);
+    }
+
+    #[test]
+    fn test_generate_register_envelope_invalid_password() {
+        let envelope = generate_register_envelope(String::new());
+        assert!(envelope.is_err());
+    }
+
+    #[test]
+    fn test_create_entry_invalid_pk() {
+        let result = create_entry("Password42!".to_string(), vec![]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_create_entry_empty_password() {
+        let result = create_entry(String::new(), vec![]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_read_entry_invalid_data() {
+        let result = read_entry(
+            "test".to_string(),
+            vec![0; 16],
+            vec![0; 32],
+            vec![0; 12],
+            vec![0; 32],
+            vec![0; 32],
+            vec![0; 12],
+        );
+        assert!(result.is_err());
     }
 }
 
