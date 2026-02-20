@@ -1,5 +1,4 @@
 mod models;
-mod errors;
 
 use aes_gcm::{AeadCore, Aes256Gcm, KeyInit, Nonce};
 use aes_gcm::aead::{Aead};
@@ -7,8 +6,6 @@ use argon2::{Argon2};
 use rand::RngCore;
 use rand::rngs::OsRng;
 use wasm_bindgen::prelude::*;
-use crate::errors::encryption_error::EncryptionError;
-use crate::errors::string_error::StringError;
 use crate::models::entry::Entry;
 use crate::models::register_envelope::RegisterEnvelope;
 
@@ -20,17 +17,17 @@ pub fn generate_register_envelope(master_password: String) -> Result<RegisterEnv
 
     let mut k_master = [0u8; 32];
     Argon2::default().hash_password_into(master, &master_salt, &mut k_master)
-        .map_err(|e| JsValue::from(EncryptionError::from(e).get_str()))?;
+        .map_err(|_| JsValue::NULL)?;
 
     let mut rng = rand::thread_rng();
     let kyber_keys = pqc_kyber::keypair(&mut rng)
-        .map_err(|e| JsValue::from(EncryptionError::from(e).get_str()))?;
+        .map_err(|_| JsValue::NULL)?;
 
     let cipher = Aes256Gcm::new_from_slice(&k_master)
-        .map_err(|e| JsValue::from(EncryptionError::from(e).get_str()))?;
+        .map_err(|_| JsValue::NULL)?;
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
     let enc_sk = cipher.encrypt(&nonce, kyber_keys.secret.as_ref())
-        .map_err(|e| JsValue::from(EncryptionError::from(e).get_str()))?;
+        .map_err(|_| JsValue::NULL)?;
 
     Ok(RegisterEnvelope::new(
         Vec::from(master_salt),
@@ -46,13 +43,13 @@ pub fn create_entry(password: String, pk: Vec<u8>) -> Result<Entry, JsValue> {
 
     let mut rng = rand::thread_rng();
     let (enc_kyber, cipher_key) = pqc_kyber::encapsulate(&pk, &mut rng)
-        .map_err(|e| JsValue::from(EncryptionError::from(e).get_str()))?;
+        .map_err(|_| JsValue::NULL)?;
 
     let cipher = Aes256Gcm::new_from_slice(&cipher_key)
-        .map_err(|e| JsValue::from(EncryptionError::from(e).get_str()))?;
+        .map_err(|_| JsValue::NULL)?;
     let pwd_nonce = Aes256Gcm::generate_nonce(&mut OsRng);
     let enc_pwd = cipher.encrypt(&pwd_nonce, password.as_ref())
-        .map_err(|e| JsValue::from(EncryptionError::from(e).get_str()))?;
+        .map_err(|_| JsValue::NULL)?;
 
     Ok(Entry::new(
         enc_pwd,
@@ -68,25 +65,25 @@ pub fn read_entry(master_password: String, master_salt: Vec<u8>, enc_sk: Vec<u8>
 
     let mut k_master = [0u8; 32];
     Argon2::default().hash_password_into(master_password, master_salt, &mut k_master)
-        .map_err(|e| JsValue::from(EncryptionError::from(e).get_str()))?;
+        .map_err(|_| JsValue::NULL)?;
 
     let cipher = Aes256Gcm::new_from_slice(&k_master)
-        .map_err(|e| JsValue::from(EncryptionError::from(e).get_str()))?;
+        .map_err(|_| JsValue::NULL)?;
     let sk_nonce = Nonce::from_slice(sk_nonce.as_slice());
     let sk = cipher.decrypt(&sk_nonce, enc_sk.as_ref())
-        .map_err(|e| JsValue::from(EncryptionError::from(e).get_str()))?;
+        .map_err(|_| JsValue::NULL)?;
 
     let cipher_key = pqc_kyber::decapsulate(&enc_kyber, &sk)
-        .map_err(|e| JsValue::from(EncryptionError::from(e).get_str()))?;
+        .map_err(|_| JsValue::NULL)?;
 
     let cipher = Aes256Gcm::new_from_slice(&cipher_key)
-        .map_err(|e| JsValue::from(EncryptionError::from(e).get_str()))?;
+        .map_err(|_| JsValue::NULL)?;
     let pwd_nonce = Nonce::from_slice(pwd_nonce.as_slice());
     let pwd = cipher.decrypt(&pwd_nonce, enc_pwd.as_ref())
-        .map_err(|e| JsValue::from(EncryptionError::from(e).get_str()))?;
+        .map_err(|_| JsValue::NULL)?;
 
     Ok(String::from_utf8(pwd)
-           .map_err(|e| JsValue::from(StringError::from(e).get_str()))?)
+           .map_err(|_| JsValue::NULL)?)
 }
 
 #[cfg(test)]
