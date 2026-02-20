@@ -4,6 +4,7 @@ mod errors;
 use aes_gcm::{AeadCore, Aes256Gcm, KeyInit, Nonce};
 use aes_gcm::aead::{Aead};
 use argon2::{Argon2};
+use rand::RngCore;
 use rand::rngs::OsRng;
 use wasm_bindgen::prelude::*;
 use crate::errors::encryption_error::EncryptionError;
@@ -12,12 +13,13 @@ use crate::models::entry::Entry;
 use crate::models::register_envelope::RegisterEnvelope;
 
 #[wasm_bindgen]
-pub fn generate_register_envelope(master_password: String, user_unique: String) -> Result<RegisterEnvelope, JsValue> {
+pub fn generate_register_envelope(master_password: String) -> Result<RegisterEnvelope, JsValue> {
     let master = master_password.as_bytes();
-    let salt = user_unique.as_bytes();
+    let mut master_salt = [0u8; 16];
+    rand::thread_rng().fill_bytes(&mut master_salt);
 
     let mut k_master = [0u8; 32];
-    Argon2::default().hash_password_into(master, salt, &mut k_master)
+    Argon2::default().hash_password_into(master, &master_salt, &mut k_master)
         .map_err(|e| JsValue::from(EncryptionError::from(e).get_str()))?;
 
     let mut rng = rand::thread_rng();
@@ -31,6 +33,7 @@ pub fn generate_register_envelope(master_password: String, user_unique: String) 
         .map_err(|e| JsValue::from(EncryptionError::from(e).get_str()))?;
 
     Ok(RegisterEnvelope::new(
+        Vec::from(master_salt),
         enc_sk,
         Vec::from(kyber_keys.public),
         nonce.as_slice().into()
@@ -59,12 +62,12 @@ pub fn create_entry(password: String, pk: Vec<u8>) -> Result<Entry, JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn read_entry(master_password: String, user_unique: String, enc_sk: Vec<u8>, sk_nonce: Vec<u8>, enc_pwd: Vec<u8>, enc_kyber: Vec<u8>, pwd_nonce: Vec<u8>) -> Result<String, JsValue> {
+pub fn read_entry(master_password: String, master_salt: Vec<u8>, enc_sk: Vec<u8>, sk_nonce: Vec<u8>, enc_pwd: Vec<u8>, enc_kyber: Vec<u8>, pwd_nonce: Vec<u8>) -> Result<String, JsValue> {
     let master_password = master_password.as_bytes();
-    let salt = user_unique.as_bytes();
+    let master_salt = master_salt.as_slice();
 
     let mut k_master = [0u8; 32];
-    Argon2::default().hash_password_into(master_password, salt, &mut k_master)
+    Argon2::default().hash_password_into(master_password, master_salt, &mut k_master)
         .map_err(|e| JsValue::from(EncryptionError::from(e).get_str()))?;
 
     let cipher = Aes256Gcm::new_from_slice(&k_master)
