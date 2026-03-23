@@ -6,7 +6,7 @@ use argon2::{Argon2};
 use rand::RngCore;
 use rand::rngs::OsRng;
 use wasm_bindgen::prelude::*;
-use crate::models::entry::Entry;
+use crate::models::encoded::Encoded;
 use crate::models::register_envelope::RegisterEnvelope;
 
 #[wasm_bindgen]
@@ -42,12 +42,12 @@ pub fn generate_register_envelope(master_password: String) -> Result<RegisterEnv
 }
 
 #[wasm_bindgen]
-pub fn create_entry(password: String, pk: Vec<u8>) -> Result<Entry, JsValue> {
-    if password.is_empty() {
+pub fn create_encoded(plain_text: String, pk: Vec<u8>) -> Result<Encoded, JsValue> {
+    if plain_text.is_empty() {
         return Err(JsValue::NULL);
     }
 
-    let password = password.as_bytes();
+    let plain_text = plain_text.as_bytes();
 
     let mut rng = rand::thread_rng();
     let (enc_kyber, cipher_key) = pqc_kyber::encapsulate(&pk, &mut rng)
@@ -55,19 +55,19 @@ pub fn create_entry(password: String, pk: Vec<u8>) -> Result<Entry, JsValue> {
 
     let cipher = Aes256Gcm::new_from_slice(&cipher_key)
         .map_err(|_| JsValue::NULL)?;
-    let pwd_nonce = Aes256Gcm::generate_nonce(&mut OsRng);
-    let enc_pwd = cipher.encrypt(&pwd_nonce, password.as_ref())
+    let enc_nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+    let encoded = cipher.encrypt(&enc_nonce, plain_text.as_ref())
         .map_err(|_| JsValue::NULL)?;
 
-    Ok(Entry::new(
-        enc_pwd,
+    Ok(Encoded::new(
+        encoded,
         enc_kyber.to_vec(),
-        pwd_nonce.as_slice().into()
+        enc_nonce.as_slice().into()
     ))
 }
 
 #[wasm_bindgen]
-pub fn read_entry(master_password: String, master_salt: Vec<u8>, enc_sk: Vec<u8>, sk_nonce: Vec<u8>, enc_pwd: Vec<u8>, enc_kyber: Vec<u8>, pwd_nonce: Vec<u8>) -> Result<String, JsValue> {
+pub fn read_encoded(master_password: String, master_salt: Vec<u8>, enc_sk: Vec<u8>, sk_nonce: Vec<u8>, encoded: Vec<u8>, enc_kyber: Vec<u8>, nonce: Vec<u8>) -> Result<String, JsValue> {
     let master_password = master_password.as_bytes();
     let master_salt = master_salt.as_slice();
 
@@ -86,11 +86,11 @@ pub fn read_entry(master_password: String, master_salt: Vec<u8>, enc_sk: Vec<u8>
 
     let cipher = Aes256Gcm::new_from_slice(&cipher_key)
         .map_err(|_| JsValue::NULL)?;
-    let pwd_nonce = Nonce::from_slice(pwd_nonce.as_slice());
-    let pwd = cipher.decrypt(&pwd_nonce, enc_pwd.as_ref())
+    let nonce = Nonce::from_slice(nonce.as_slice());
+    let plain_text = cipher.decrypt(&nonce, encoded.as_ref())
         .map_err(|_| JsValue::NULL)?;
 
-    Ok(String::from_utf8(pwd)
+    Ok(String::from_utf8(plain_text)
            .map_err(|_| JsValue::NULL)?)
 }
 
@@ -99,7 +99,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_generate_register_envelope_and_create_entry_and_read_entry() {
+    fn test_generate_register_envelope_and_create_encoded_and_read_encoded() {
         let master_password = "SuperSecretPassword123!".to_string();
 
         // Génération de l'enveloppe d'enregistrement
@@ -108,19 +108,19 @@ mod tests {
 
         // Création d'une entrée avec un mot de passe à stocker
         let password_to_store = "MyPassword42".to_string();
-        let entry = create_entry(password_to_store.clone(), envelope.pk.clone())
-            .expect("Failed to create entry");
+        let encoded_string = create_encoded(password_to_store.clone(), envelope.pk.clone())
+            .expect("Failed to create encoded_string");
 
         // Lecture du mot de passe à partir de l'entrée
-        let result = read_entry(
+        let result = read_encoded(
             master_password.clone(),
             envelope.master_salt.clone(),
             envelope.enc_sk.clone(),
             envelope.sk_nonce.clone(),
-            entry.enc_pwd.clone(),
-            entry.enc_kyber.clone(),
-            entry.pwd_nonce.clone(),
-        ).expect("Failed to read entry");
+            encoded_string.encoded.clone(),
+            encoded_string.enc_kyber.clone(),
+            encoded_string.enc_nonce.clone(),
+        ).expect("Failed to read encoded_string");
 
         assert_eq!(result, password_to_store);
     }
@@ -132,20 +132,20 @@ mod tests {
     }
 
     #[test]
-    fn test_create_entry_invalid_pk() {
-        let result = create_entry("Password42!".to_string(), vec![]);
+    fn test_create_encoded_invalid_pk() {
+        let result = create_encoded("Password42!".to_string(), vec![]);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_create_entry_empty_password() {
-        let result = create_entry(String::new(), vec![]);
+    fn test_create_encoded_empty_password() {
+        let result = create_encoded(String::new(), vec![]);
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_read_entry_invalid_data() {
-        let result = read_entry(
+    fn test_read_encoded_invalid_data() {
+        let result = read_encoded(
             "test".to_string(),
             vec![0; 16],
             vec![0; 32],
