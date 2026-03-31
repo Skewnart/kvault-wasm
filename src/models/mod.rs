@@ -1,2 +1,2 @@
 pub mod register_envelope;
-pub mod entry;
+pub mod encoded;
