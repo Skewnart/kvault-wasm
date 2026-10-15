@@ -210,7 +210,7 @@ dependencies = [
 
 [[package]]
 name = "kvault-wasm"
-version = "0.1.0-alpha"
+version = "1.0.0"
 dependencies = [
  "aes-gcm",
  "argon2",
